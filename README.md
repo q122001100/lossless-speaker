@@ -63,6 +63,6 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 
 本项目仅供学习交流使用,请勿用于非法用途。传播或使用请遵守当地法律法规。
 
-## 特别鸣谢
+## 许可证
 
-- [NAudio](https://github.com/naudio/NAudio) — .NET 音频收集
+[MIT](LICENSE) © q122001100
