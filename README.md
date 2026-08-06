@@ -66,4 +66,3 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 ## 特别鸣谢
 
 - [NAudio](https://github.com/naudio/NAudio) — .NET 音频收集
-- 金山毒霸 Watt Toolkit(Steam++) — 加速 GitHub 访问
