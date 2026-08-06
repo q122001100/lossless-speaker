@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>无损音箱</title>
+<style>
+body{margin:0;font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f7f3fb;color:#3d3a45;min-height:100vh;display:flex;flex-direction:column;align-items:center;}
+.card{margin:24px 16px;padding:26px 22px;max-width:420px;width:100%;background:#fff;border-radius:20px;box-shadow:0 8px 28px rgba(139,123,216,.18);box-sizing:border-box;}
+h1{font-size:24px;margin:0 0 4px;color:#6f5fb8;}
+.sub{color:#8a84a8;font-size:13px;margin-bottom:20px;}
+.status{display:flex;align-items:center;gap:10px;font-size:16px;margin-bottom:20px;}
+.dot{width:12px;height:12px;border-radius:50%;background:#e4dff2;}
+.dot.ok{background:#a8c5a0;box-shadow:0 0 10px #a8c5a0;}
+.dot.busy{background:#e8a0bf;box-shadow:0 0 10px #e8a0bf;}
+.btn{width:100%;padding:15px 0;font-size:18px;border:none;border-radius:14px;background:#8b7bd8;color:#fff;cursor:pointer;letter-spacing:4px;transition:opacity .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.btn:active{opacity:.7;}
+.btn:disabled{background:#e4dff2;color:#8a84a8;}
+.btn.big{height:96px;font-size:26px;}
+.btn.about{background:#f3f0fa;color:#6f5fb8;letter-spacing:0;margin-top:14px;font-size:15px;padding:12px 0;}
+.vol{margin-top:20px;display:none;}
+.vol label{display:block;font-size:14px;color:#8a84a8;margin-bottom:8px;}
+input[type=range]{width:100%;height:34px;accent-color:#8b7bd8;}
+.info{color:#8a84a8;font-size:12px;margin-top:18px;line-height:2;border-top:1px solid #e4dff2;padding-top:12px;}
+.note{color:#a99ec2;font-size:11px;margin-top:8px;line-height:1.8;}
+.overlay{position:fixed;inset:0;background:rgba(61,58,69,.4);display:none;align-items:center;justify-content:center;z-index:10;}
+.overlay.show{display:flex;}
+.about-card{margin:16px;padding:26px 24px;max-width:360px;width:100%;background:#fff;border-radius:20px;box-shadow:0 8px 28px rgba(139,123,216,.25);box-sizing:border-box;text-align:center;}
+.about-card h2{margin:0 0 4px;color:#6f5fb8;font-size:19px;}
+.about-card .sub{margin-bottom:14px;}
+.about-card img{width:240px;height:240px;border:1px solid #e4dff2;border-radius:12px;box-sizing:border-box;}
+.about-card .tip{color:#3d3a45;font-size:14px;line-height:1.7;margin:14px 0 10px;}
+.about-card .author{color:#8a84a8;font-size:12px;line-height:1.9;}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>无损音箱</h1>
+  <div class="sub">电脑声音 · 未压缩直传 · 手机当音箱</div>
+  <div class="status"><span class="dot" id="dot"></span><span id="st">未连接</span></div>
+  <button class="btn big" id="btn">点击连接电脑</button>
+  <div class="vol" id="volwrap">
+    <label>音量 <span id="volv">100%</span></label>
+    <input type="range" id="vol" min="0" max="100" value="100">
+  </div>
+  <div class="info" id="info">采样率 -- Hz | 声道 --</div>
+  <div class="note" id="note"></div>
+  <button class="btn about" id="aboutBtn">关于</button>
+</div>
+<div class="overlay" id="overlay">
+  <div class="about-card">
+    <h2>关于无损音箱</h2>
+    <div class="sub">电脑/手机传音 · 未压缩无损 · 双模式</div>
+    <img id="qrImg" alt="赞赏二维码">
+    <div class="tip">觉得好用,扫码请我喝杯奶茶就好;<br>不喜欢也没关系,缘聚缘散。</div>
+    <div class="author">作者: 悟问天道<br>QQ: 122001100</div>
+  </div>
+</div>
+<script>
+var ctx=null, gain=null, ws=null, queue=[], nextTime=0, sr=48000, ch=2, playing=false, vol=1, busy=false, lastData=0, reconnectTimer=null, stallTimer=null;
+var dot=document.getElementById('dot'), st=document.getElementById('st'),
+    btn=document.getElementById('btn'), volWrap=document.getElementById('volwrap'),
+    volV=document.getElementById('volv'), info=document.getElementById('info'),
+    note=document.getElementById('note'), volEl=document.getElementById('vol'),
+    overlay=document.getElementById('overlay'), aboutBtn=document.getElementById('aboutBtn'),
+    qrImg=document.getElementById('qrImg');
+
+var quotes=['其实地上本没有路,走的人多了,也便成了路。',
+'愿中国青年都摆脱冷气,只是向上走,不必听自暴自弃者流的话。',
+'不在沉默中爆发,就在沉默中灭亡。',
+'我们自古以来,就有埋头苦干的人,有拼命硬干的人,有为民请命的人,有舍身求法的人,这就是中国的脊梁。',
+'横眉冷对千夫指,俯首甘为孺子牛。',
+'真的勇士,敢于直面惨淡的人生,敢于正视淋漓的鲜血。',
+'哪里有天才,我是把别人喝咖啡的工夫都用在工作上的。',
+'时间就像海绵里的水,只要愿挤,总还是有的。',
+'哀其不幸,怒其不争。',
+'愿所有人都能摆脱冷气和黑暗,向上走。',
+'希望是附丽于存在的,有存在,便有希望,有希望,便是光明。',
+'巨大的建筑,总是由一木一石叠起来的,我们何妨做做这一木一石呢。',
+'人生最苦痛的是梦醒了无路可以走。',
+'无穷的远方,无数的人们,都和我有关。',
+'从来如此,便对么?',
+'有缺点的战士终竟是战士,完美的苍蝇也终竟不过是苍蝇。',
+'无情未必真豪杰,怜子如何不丈夫。',
+'度尽劫波兄弟在,相逢一笑泯恩仇。',
+'我好像是一只牛,吃的是草,挤出的是奶、血。',
+'人既发扬踔厉矣,则邦国亦以兴起。',
+'空谈之类,是谈不久,也谈不出什么来的,它终必被事实的镜子照出原形。',
+'只要能培一朵花,就不妨做做会朽的腐草。',
+'做一件事,无论大小,倘无恒心,是很不好的。',
+'人类的悲欢并不相通,我只觉得他们吵闹。'];
+var qi=0;
+var quoteEl=document.getElementById('note');
+quoteEl.textContent='「'+quotes[0]+'」';
+function rotQuote(){
+  qi=(qi+1)%quotes.length;
+  quoteEl.textContent='「'+quotes[qi]+'」';
+}
+setInterval(rotQuote,3000);
+
+qrImg.onload=function(){};
+qrImg.src='reward_qrcode.png';
+aboutBtn.onclick=function(){ overlay.classList.add('show'); };
+overlay.onclick=function(){ overlay.classList.remove('show'); };
+
+function setStatus(t, k){
+  st.textContent=t;
+  dot.className='dot'+(k?' '+k:'');
+}
+
+function stopReconnect(){ if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;} }
+
+function open(){
+  if(busy) return;
+  busy=true;
+  stopReconnect();
+  setStatus('连接中…','busy');
+  try{ if(ws){ ws.onclose=null; ws.onerror=null; ws.close(); } }catch(e){}
+  ws=new WebSocket('ws://'+location.host+'/');
+  ws.binaryType='arraybuffer';
+  ws.onopen=function(){
+    setStatus('已连接,等待电脑出声','ok');
+    queue.length=0;
+    nextTime=0;
+  };
+  ws.onmessage=function(ev){
+    lastData=Date.now();
+    if(typeof ev.data==='string'){
+      try{
+        var m=JSON.parse(ev.data);
+        if(m.sr) sr=m.sr;
+        if(m.ch) ch=m.ch;
+        info.textContent='采样率 '+sr+' Hz | 声道 '+ch;
+        if(playing && ctx) nextTime=0;
+      }catch(e){}
+    }else{
+      pushData(ev.data);
+    }
+  };
+  ws.onclose=function(){
+    busy=false;
+    setStatus('已断开,3 秒后自动重连','busy');
+    queue.length=0;
+    if(playing) scheduleReconnect();
+  };
+  ws.onerror=function(){ try{ws.close();}catch(e){} };
+}
+
+function scheduleReconnect(){
+  stopReconnect();
+  reconnectTimer=setTimeout(open,3000);
+}
+
+var stallCheck=function(){
+  if(!playing) return;
+  if(ws && ws.readyState===1 && Date.now()-lastData>1500){
+    setStatus('信号中断,自动重连中','busy');
+    note.textContent='';
+    queue.length=0;
+    try{ ws.close(); }catch(e){}
+  }
+};
+
+btn.onclick=function(){
+  if(!ctx){
+    ctx=new (window.AudioContext||window.webkitAudioContext)();
+    gain=ctx.createGain();
+    gain.gain.value=vol;
+    gain.connect(ctx.destination);
+  }
+  ctx.resume();
+  playing=true;
+  volWrap.style.display='block';
+  open();
+};
+
+function pushData(buf){
+  if(!ctx) return;
+  var frames=buf.byteLength/2/ch;
+  if(frames<1) return;
+  if(queue.length===0 && nextTime < ctx.currentTime-0.1) nextTime=0;
+  var ab=ctx.createBuffer(ch, frames, sr);
+  var dv=new DataView(buf);
+  for(var c=0;c<ch;c++){
+    var od=ab.getChannelData(c);
+    for(var i=0;i<frames;i++){
+      od[i]=dv.getInt16((i*ch+c)*2,true)/32768;
+    }
+  }
+  queue.push(ab);
+  if(queue.length>100) queue.splice(0,queue.length-100);
+  schedule();
+}
+
+function schedule(){
+  if(!playing||!ctx||queue.length===0) return;
+  var now=ctx.currentTime;
+  if(nextTime < now+0.05) nextTime=now+(document.hidden?3.0:0.25);
+  while(queue.length && nextTime-now<1.0){
+    var b=queue.shift();
+    var s=ctx.createBufferSource();
+    s.buffer=b;
+    s.connect(gain);
+    s.start(nextTime);
+    nextTime+=b.duration;
+  }
+}
+
+setInterval(stallCheck,800);
+setInterval(function(){ if(playing&&ctx) schedule(); }, 60);
+
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden){
+    if(ctx && ctx.state==='suspended') ctx.resume();
+    schedule();
+  }
+});
+window.addEventListener('pageshow',function(){
+  if(ctx && ctx.state==='suspended') ctx.resume();
+  if(playing && (!ws || ws.readyState!==1)) scheduleReconnect();
+});
+
+volEl.oninput=function(){
+  vol=this.value/100;
+  volV.textContent=this.value+'%';
+  if(gain) gain.gain.value=vol;
+};
+</script>
+</body>
+</html>

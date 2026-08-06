@@ -1,0 +1,4 @@
+# Android build 中间产物(最终 APK 在根目录保留)
+android/build/
+# 本地日志
+*.log
